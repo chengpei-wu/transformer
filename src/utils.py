@@ -44,10 +44,12 @@ class Batch:
         return tgt_mask.to(self.device)
 
 
-def greedy_decode(model, src, src_mask, max_len, start_symbol):
+def greedy_decode(model, src, src_mask, max_len, start_symbol, device):
     memory = model.encode(src, src_mask)
     ys = torch.zeros(1, 1).fill_(start_symbol).type_as(src.data).to(device)
     for i in range(max_len - 1):
+        print('Input sequence:', ys.squeeze().cpu().numpy().tolist())
+
         out = model.decode(
             ys,
             memory,
@@ -57,6 +59,9 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol):
         prob = model.generator(out[:, -1])
         _, next_word = torch.max(prob, dim=1)
         next_word = next_word.data[0]
+
+        print('Predicted next word:', next_word.item())
+
         ys = torch.cat(
             [ys, torch.zeros(1, 1).type_as(src.data).fill_(next_word)], dim=1
         )

@@ -1,3 +1,5 @@
+import os
+
 import torch
 from torch import nn
 from torch.optim.lr_scheduler import LambdaLR
@@ -102,11 +104,17 @@ def rate(step, model_size, factor, warmup):
 
 if __name__ == "__main__":
     # Train the simple copy task for transformer.
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    V = 11
-    criterion = LabelSmoothing(size=V, padding_idx=0, smoothing=0.0)
-    model = Transformer(V, V, num_layer=2).to(device=device)
+    # for mac
+    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+
+    print(f"Using device: {device}")
+    vocab_size = 11
+    batch_size = 256
+
+    criterion = LabelSmoothing(size=vocab_size, padding_idx=0, smoothing=0.0)
+    model = Transformer(vocab_size, vocab_size, num_layer=2).to(device=device)
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=0.5, betas=(0.9, 0.98), eps=1e-9
@@ -119,31 +127,34 @@ if __name__ == "__main__":
         ),
     )
 
-    batch_size = 128
+    train_loader = create_copy_task_dataloader(vocab_size, batch_size, device=device, total_samples=batch_size * 10)
+    val_loader = create_copy_task_dataloader(vocab_size, batch_size, device=device, total_samples=batch_size * 1)
 
-    train_loader = create_copy_task_dataloader(V, batch_size, device=device, total_samples=batch_size * 10)
-    test_loader = create_copy_task_dataloader(V, batch_size, device=device, total_samples=batch_size * 1)
+    if not os.path.exists("./checkpoints/model_copy_task.pt"):
+        for epoch in range(30):
+            for batch in train_loader:
+                model.train()
+                optimizer.zero_grad()
 
-    for epoch in range(30):
-        for batch in train_loader:
-            model.train()
-            optimizer.zero_grad()
+                output = model(
+                    batch.src, batch.tgt, batch.src_mask, batch.tgt_mask
+                )
 
-            output = model(
-                batch.src, batch.tgt, batch.src_mask, batch.tgt_mask
-            )
+                _, loss = SimpleLossCompute(criterion)(
+                    output, batch.tgt_y, norm=batch.ntokens
+                )
 
-            _, loss = SimpleLossCompute(criterion)(
-                output, batch.tgt_y, norm=batch.ntokens
-            )
+                print(f"Epoch {epoch}, Loss: {loss.item() / batch.ntokens.item():.4f}")
+                loss.backward()
+                optimizer.step()
+                lr_scheduler.step()
 
-            print(f"Epoch {epoch}, Loss: {loss.item() / batch.ntokens.item():.4f}")
-            loss.backward()
-            optimizer.step()
-            lr_scheduler.step()
+        torch.save(model.state_dict(), f"./checkpoints/model_copy_task.pt")
+    else:
+        model.load_state_dict(torch.load("./checkpoints/model_copy_task.pt", weights_only=True))
 
     model.eval()
-    src = torch.LongTensor([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]).to(device)
+    src = torch.LongTensor([[0, 1, 1, 1, 1, 1, 1, 1, 1]]).to(device)
     max_len = src.shape[1]
     src_mask = torch.ones(1, 1, max_len).to(device)
-    print(greedy_decode(model, src, src_mask, max_len=max_len, start_symbol=0))
+    greedy_decode(model, src, src_mask, max_len=max_len, start_symbol=0, device=device)
