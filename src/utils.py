@@ -10,7 +10,7 @@ def subsequent_mask(size):
 
 class Batch:
     # construct batch for training
-    def __init__(self, src, tgt=None, pad=2, device=torch.device("cpu")):  # 2 = <blank>
+    def __init__(self, src, tgt=None, pad=0, device=torch.device("cpu")):  # 2 = <blank>
         self.device = device
 
         # input for encoder
@@ -45,8 +45,12 @@ class Batch:
 
 
 def greedy_decode(model, src, src_mask, max_len, start_symbol, device):
+    # output of encoder is used as memory for decoder
     memory = model.encode(src, src_mask)
+
+    # initial input for decoder is the start symbol
     ys = torch.zeros(1, 1).fill_(start_symbol).type_as(src.data).to(device)
+
     for i in range(max_len - 1):
         print('Input sequence:', ys.squeeze().cpu().numpy().tolist())
 
@@ -61,6 +65,7 @@ def greedy_decode(model, src, src_mask, max_len, start_symbol, device):
         next_word = next_word.data[0]
 
         print('Predicted next word:', next_word.item())
+        print()
 
         ys = torch.cat(
             [ys, torch.zeros(1, 1).type_as(src.data).fill_(next_word)], dim=1

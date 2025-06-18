@@ -154,7 +154,7 @@ if __name__ == "__main__":
         model.load_state_dict(torch.load("./checkpoints/model_copy_task.pt", weights_only=True))
 
     model.eval()
-    src = torch.LongTensor([[0, 1, 1, 1, 1, 1, 1, 1, 1]]).to(device)
+    src = torch.LongTensor([[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]).to(device)
     max_len = src.shape[1]
     src_mask = torch.ones(1, 1, max_len).to(device)
     greedy_decode(model, src, src_mask, max_len=max_len, start_symbol=0, device=device)
