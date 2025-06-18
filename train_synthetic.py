@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
 from src.model import Transformer
 from src.utils import Batch, greedy_decode
@@ -104,10 +105,10 @@ def rate(step, model_size, factor, warmup):
 
 if __name__ == "__main__":
     # Train the simple copy task for transformer.
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # for mac
-    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    # device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
     print(f"Using device: {device}")
     vocab_size = 11
@@ -131,23 +132,31 @@ if __name__ == "__main__":
     val_loader = create_copy_task_dataloader(vocab_size, batch_size, device=device, total_samples=batch_size * 1)
 
     if not os.path.exists("./checkpoints/model_copy_task.pt"):
-        for epoch in range(30):
-            for batch in train_loader:
-                model.train()
-                optimizer.zero_grad()
+        with tqdm(desc="Training Progress", total=len(train_loader) * 30) as pbar:
+            for epoch in range(30):
+                for i, batch in enumerate(train_loader):
+                    model.train()
+                    optimizer.zero_grad()
 
-                output = model(
-                    batch.src, batch.tgt, batch.src_mask, batch.tgt_mask
-                )
+                    output = model(
+                        batch.src, batch.tgt, batch.src_mask, batch.tgt_mask
+                    )
 
-                _, loss = SimpleLossCompute(criterion)(
-                    output, batch.tgt_y, norm=batch.ntokens
-                )
+                    _, loss = SimpleLossCompute(criterion)(
+                        output, batch.tgt_y, norm=batch.ntokens
+                    )
+                    info = {
+                        'Epoch': epoch + 1,
+                        'Batch': i,
+                        'Loss':  loss.item() / batch.ntokens.item(),
+                    }
 
-                print(f"Epoch {epoch}, Loss: {loss.item() / batch.ntokens.item():.4f}")
-                loss.backward()
-                optimizer.step()
-                lr_scheduler.step()
+                    pbar.set_postfix(**info)
+                    pbar.update(1)
+
+                    loss.backward()
+                    optimizer.step()
+                    lr_scheduler.step()
 
         torch.save(model.state_dict(), f"./checkpoints/model_copy_task.pt")
     else:

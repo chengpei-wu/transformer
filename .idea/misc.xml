@@ -3,4 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="torch-2.4.0" />
   </component>
+  <component name="ProjectRootManager" version="2" project-jdk-name="torch_reproduction_general" project-jdk-type="Python SDK" />
 </project>
